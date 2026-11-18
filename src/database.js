@@ -114,6 +114,82 @@ function setRoomMonitored(id, isMonitored) {
   stmt.run(isMonitored ? 1 : 0, String(id));
 }
 
+function updateRoomName(id, newName) {
+  const cleanName = String(newName || '').trim();
+  if (!cleanName) return false;
+  const stmtRoom = db.prepare('UPDATE rooms SET name = ? WHERE id = ?');
+  stmtRoom.run(cleanName, String(id));
+  const stmtMsg = db.prepare('UPDATE messages SET room_name = ? WHERE room_id = ?');
+  stmtMsg.run(cleanName, String(id));
+  return true;
+}
+
+function mergeRooms(targetRoomId, sourceRoomIds) {
+  if (!targetRoomId || !Array.isArray(sourceRoomIds) || sourceRoomIds.length === 0) {
+    return { success: false, error: '유효한 대상 방과 병합할 방 목록이 필요합니다.' };
+  }
+  // 자기 자신 제외
+  const filteredSources = sourceRoomIds.map(String).filter(id => id !== String(targetRoomId));
+  if (filteredSources.length === 0) return { success: true, movedCount: 0 };
+
+  const targetRoom = db.prepare('SELECT * FROM rooms WHERE id = ?').get(String(targetRoomId));
+  if (!targetRoom) {
+    return { success: false, error: '대상 대화방을 찾을 수 없습니다.' };
+  }
+
+  const placeholders = filteredSources.map(() => '?').join(',');
+  // 메시지 이동 및 방 이름 통일
+  const updateStmt = db.prepare(`
+    UPDATE messages 
+    SET room_id = ?, room_name = ? 
+    WHERE room_id IN (${placeholders})
+  `);
+  updateStmt.run(String(targetRoomId), targetRoom.name, ...filteredSources);
+
+  // 대상 방의 최신 메시지 시간 갱신
+  const latestMsg = db.prepare('SELECT MAX(sent_at) as max_sent FROM messages WHERE room_id = ?').get(String(targetRoomId));
+  if (latestMsg && latestMsg.max_sent) {
+    db.prepare('UPDATE rooms SET last_message_at = ? WHERE id = ?').run(latestMsg.max_sent, String(targetRoomId));
+  }
+
+  // 병합된 이전 방 레코드 삭제
+  const deleteStmt = db.prepare(`DELETE FROM rooms WHERE id IN (${placeholders})`);
+  deleteStmt.run(...filteredSources);
+
+  return { success: true, targetRoomId, targetRoomName: targetRoom.name, mergedCount: filteredSources.length };
+}
+
+// --- 일별 대화 집계 및 요약 관련 메서드 ---
+function getRoomDailySummaries(roomId) {
+  const stmt = db.prepare(`
+    SELECT 
+      substr(sent_at, 1, 10) as date,
+      COUNT(id) as total_messages,
+      SUM(CASE WHEN attachment_path IS NOT NULL OR message_type IN ('image', 'video', 'file', 'image_notice', 'video_notice') THEN 1 ELSE 0 END) as total_media,
+      GROUP_CONCAT(DISTINCT sender) as senders,
+      MIN(sent_at) as first_sent_at,
+      MAX(sent_at) as last_sent_at
+    FROM messages
+    WHERE room_id = ?
+    GROUP BY substr(sent_at, 1, 10)
+    ORDER BY date DESC
+  `);
+  const rows = stmt.all(String(roomId));
+  return rows.map(r => ({
+    ...r,
+    senders: r.senders ? r.senders.split(',') : [],
+  }));
+}
+
+function getRoomMessagesByDate(roomId, dateStr) {
+  const stmt = db.prepare(`
+    SELECT * FROM messages
+    WHERE room_id = ? AND sent_at LIKE ?
+    ORDER BY sent_at ASC, id ASC
+  `);
+  return stmt.all(String(roomId), `${dateStr}%`);
+}
+
 // --- 메시지 (Messages) 관련 메서드 ---
 function insertMessage({ roomId, roomName, sender, message, messageType = 'text', attachmentPath = null, attachmentName = null, sentAt = null, source = 'android' }) {
   const now = getKSTDateTimeString();
@@ -307,6 +383,10 @@ module.exports = {
   upsertRoom,
   listRooms,
   setRoomMonitored,
+  updateRoomName,
+  mergeRooms,
+  getRoomDailySummaries,
+  getRoomMessagesByDate,
   insertMessage,
   listMessages,
   countMessages,

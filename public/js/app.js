@@ -3,6 +3,9 @@
  */
 
 let activeRoomId = null;
+let currentSummaryDate = null;
+let currentDailySummaryData = null;
+let currentViewMode = 'timeline'; // 'timeline' or 'daily'
 let ws = null;
 let roomsData = [];
 let roomDisplayCount = 5; // 상위 5개 기본 표시, 더보기 클릭 시 +5개씩 증가
@@ -17,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadMedia();
   loadSchedules();
   setupEventListeners();
+  initDailySummaryFeature();
+  initMergeRoomsFeature();
   setupMobileLifecycle();
   initPwa();
 });
@@ -216,6 +221,7 @@ function selectRoom(roomId) {
   document.getElementById('currentRoomMeta').textContent = `메시지 ${room.message_count}건 | 최종 활동: ${room.last_message_at || '-'}`;
 
   loadMessages(roomId);
+  loadRoomDailySummaries(roomId);
 }
 
 // 6. 메시지 피드 로드
@@ -352,20 +358,30 @@ async function loadMedia() {
 
     grid.innerHTML = json.data.map(item => {
       let preview = '📎';
+      const fileUrl = item.attachment_path || '';
+      const downloadHref = item.downloadUrl || `/api/media/${item.id}/download` || fileUrl;
+
       if (item.message_type === 'image') {
-        preview = `<img src="${item.attachment_path}" alt="${escapeHtml(item.attachment_name || '사진')}">`;
+        preview = `<img src="${fileUrl}" alt="${escapeHtml(item.attachment_name || '사진')}" loading="lazy">`;
       } else if (item.message_type === 'video') {
-        preview = `🎥`;
+        preview = `🎥 <small>동영상</small>`;
+      } else {
+        preview = `📄 <small>파일</small>`;
       }
 
       return `
-        <div class="media-card" onclick="openMediaPreview('${item.attachment_path}', '${escapeHtml(item.attachment_name || '미디어')}', '${item.message_type}')">
-          <div class="media-preview-container">
+        <div class="media-card" data-id="${item.id}">
+          <div class="media-preview-container" onclick="openMediaPreview('${fileUrl}', '${escapeHtml(item.attachment_name || '미디어')}', '${item.message_type}', ${item.id})">
             ${preview}
           </div>
           <div class="media-card-info">
-            <div class="media-card-name">${escapeHtml(item.attachment_name || item.message)}</div>
+            <div class="media-card-name" title="${escapeHtml(item.attachment_name || item.message)}">${escapeHtml(item.attachment_name || item.message)}</div>
             <div class="media-card-date">${escapeHtml(item.room_name)} · ${item.sent_at}</div>
+            <div class="media-card-actions">
+              <a href="${downloadHref}" download="${escapeHtml(item.attachment_name || 'download')}" class="btn-sm btn-media-download" onclick="event.stopPropagation();">
+                💾 다운로드
+              </a>
+            </div>
           </div>
         </div>
       `;
@@ -375,19 +391,34 @@ async function loadMedia() {
   }
 }
 
-function openMediaPreview(path, name, type) {
+function openMediaPreview(filePath, name, type, id) {
   const dialog = document.getElementById('mediaPreviewDialog');
   const title = document.getElementById('mediaPreviewTitle');
   const body = document.getElementById('mediaPreviewBody');
 
+  const downloadHref = id ? `/api/media/${id}/download` : filePath;
+
   title.textContent = name;
+  let contentHtml = '';
   if (type === 'image') {
-    body.innerHTML = `<img src="${path}" style="max-width:100%; max-height:75vh; display:block; margin:auto; border-radius:8px;">`;
+    contentHtml = `<img src="${filePath}" style="max-width:100%; max-height:65vh; display:block; margin:0 auto 12px; border-radius:8px;">`;
   } else if (type === 'video') {
-    body.innerHTML = `<video src="${path}" controls autoplay style="max-width:100%; max-height:75vh; display:block; margin:auto; border-radius:8px;"></video>`;
+    contentHtml = `<video src="${filePath}" controls autoplay style="max-width:100%; max-height:65vh; display:block; margin:0 auto 12px; border-radius:8px;"></video>`;
   } else {
-    body.innerHTML = `<p>다운로드 파일: <a href="${path}" download class="btn-primary">다운로드 (${escapeHtml(name)})</a></p>`;
+    contentHtml = `<div style="padding:24px; text-align:center; font-size:1.2rem;">📄 ${escapeHtml(name)}</div>`;
   }
+
+  body.innerHTML = `
+    ${contentHtml}
+    <div style="display:flex; justify-content:center; gap:10px; margin-top:12px;">
+      <a href="${downloadHref}" download="${escapeHtml(name)}" class="btn-primary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+        💾 PC/스마트폰으로 원본 다운로드
+      </a>
+      <a href="${filePath}" target="_blank" class="btn-outline" style="text-decoration:none; display:inline-flex; align-items:center;">
+        새 탭에서 열기
+      </a>
+    </div>
+  `;
 
   dialog.showModal();
 }
@@ -707,5 +738,335 @@ function selectPwaTab(os) {
     tabIos?.classList.remove('active');
     if (panelAndroid) panelAndroid.style.display = 'block';
     if (panelIos) panelIos.style.display = 'none';
+  }
+}
+
+// ==========================================
+// 13. [고도화 1 & 3] 일별 대화 요약 (Daily Summary) 기능
+// ==========================================
+function initDailySummaryFeature() {
+  const btnTimeline = document.getElementById('btnViewTimeline');
+  const btnDaily = document.getElementById('btnViewDailySummary');
+  const dailyDatesBar = document.getElementById('dailyDatesBar');
+  const searchBar = document.getElementById('messageSearchBar');
+  const feed = document.getElementById('messageFeed');
+  const dailyView = document.getElementById('dailySummaryView');
+
+  if (btnTimeline) {
+    btnTimeline.addEventListener('click', () => {
+      currentViewMode = 'timeline';
+      btnTimeline.classList.add('active');
+      btnDaily?.classList.remove('active');
+      if (searchBar) searchBar.style.display = 'block';
+      if (feed) feed.style.display = 'flex';
+      if (dailyDatesBar) dailyDatesBar.style.display = 'none';
+      if (dailyView) dailyView.style.display = 'none';
+    });
+  }
+
+  if (btnDaily) {
+    btnDaily.addEventListener('click', () => {
+      if (!activeRoomId) {
+        alert('먼저 대화방을 선택해주세요!');
+        return;
+      }
+      currentViewMode = 'daily';
+      btnDaily.classList.add('active');
+      btnTimeline?.classList.remove('active');
+      if (searchBar) searchBar.style.display = 'none';
+      if (feed) feed.style.display = 'none';
+      if (dailyDatesBar) dailyDatesBar.style.display = 'flex';
+      if (dailyView) dailyView.style.display = 'block';
+
+      if (currentSummaryDate) {
+        loadDailySummary(activeRoomId, currentSummaryDate);
+      } else {
+        loadRoomDailySummaries(activeRoomId);
+      }
+    });
+  }
+}
+
+async function loadRoomDailySummaries(roomId) {
+  const chipsContainer = document.getElementById('dateChipsContainer');
+  if (!chipsContainer) return;
+
+  try {
+    const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/daily-summaries`);
+    const json = await res.json();
+    if (!json.success || !json.data || json.data.length === 0) {
+      chipsContainer.innerHTML = '<span class="hint">기록된 일별 대화가 없습니다.</span>';
+      return;
+    }
+
+    const summaries = json.data;
+    // 최신 날짜를 기본값으로 지정
+    if (!currentSummaryDate || !summaries.find(s => s.date === currentSummaryDate)) {
+      currentSummaryDate = summaries[0].date;
+    }
+
+    chipsContainer.innerHTML = summaries.map(s => `
+      <button type="button" class="date-chip ${s.date === currentSummaryDate ? 'active' : ''}" data-date="${s.date}">
+        <span>${s.date}</span>
+        <span class="chip-count">${s.total_messages}건</span>
+        ${s.total_media > 0 ? `<span class="chip-media">📸${s.total_media}</span>` : ''}
+      </button>
+    `).join('');
+
+    chipsContainer.querySelectorAll('.date-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const d = chip.getAttribute('data-date');
+        currentSummaryDate = d;
+        chipsContainer.querySelectorAll('.date-chip').forEach(c => c.classList.toggle('active', c.getAttribute('data-date') === d));
+        loadDailySummary(roomId, d);
+      });
+    });
+
+    if (currentViewMode === 'daily') {
+      loadDailySummary(roomId, currentSummaryDate);
+    }
+  } catch (err) {
+    console.error('일별 집계 로드 실패:', err);
+  }
+}
+
+async function loadDailySummary(roomId, dateStr) {
+  const card = document.getElementById('dailySummaryCard');
+  if (!card) return;
+
+  card.innerHTML = `<div class="daily-summary-loading">${dateStr} 대화 분석 및 일일 브리핑 요약 생성 중...</div>`;
+
+  try {
+    const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/daily/${encodeURIComponent(dateStr)}`);
+    const json = await res.json();
+    if (!json.success) {
+      card.innerHTML = `<div class="empty-state">요약 로드 실패: ${escapeHtml(json.error || '오류')}</div>`;
+      return;
+    }
+
+    currentDailySummaryData = json;
+
+    // 발언자 순위 뱃지
+    const senderEntries = Object.entries(json.senderStats || {}).sort((a, b) => b[1] - a[1]);
+    const senderPillsHtml = senderEntries.map(([s, c]) => `
+      <span class="sender-pill"><strong>${escapeHtml(s)}</strong> <small>(${c}건)</small></span>
+    `).join('');
+
+    // 주요 현장 보고/이슈 뱃지
+    const eventsHtml = (json.keyEvents || []).map(ev => `
+      <div class="event-item-card">
+        <span class="event-badge badge-${ev.type}">${ev.type}</span>
+        <div class="event-body">
+          <span class="event-sender">${escapeHtml(ev.sender)} <small>${ev.time}</small></span>
+          <p class="event-snippet">${escapeHtml(ev.snippet)}</p>
+        </div>
+      </div>
+    `).join('');
+
+    card.innerHTML = `
+      <div class="daily-card-header">
+        <div class="daily-title-group">
+          <span class="daily-badge">📅 일일 종합 브리핑</span>
+          <h4>[${escapeHtml(json.roomName || '대화방')}] ${dateStr}</h4>
+          <span class="daily-meta">총 대화 ${json.messageCount}건 · 참여자 ${senderEntries.length}명</span>
+        </div>
+        <button class="btn-sm btn-primary" id="btnPublishToBoard" type="button">
+          📢 아카이브 게시판으로 발행
+        </button>
+      </div>
+
+      <!-- 요약 본문 카드 -->
+      <div class="daily-summary-text-box">
+        <pre class="daily-summary-pre">${escapeHtml(json.summary)}</pre>
+      </div>
+
+      <!-- 참여 발언자 분포 -->
+      <div class="daily-section">
+        <h5>👥 참여 발언자 분포</h5>
+        <div class="sender-pills-row">${senderPillsHtml || '<span class="hint">-</span>'}</div>
+      </div>
+
+      <!-- 주요 현장 보고 타임라인 -->
+      ${eventsHtml ? `
+        <div class="daily-section">
+          <h5>🚨 주요 현장 보고 & 이슈 (${json.keyEvents.length}건)</h5>
+          <div class="events-list-container">${eventsHtml}</div>
+        </div>
+      ` : ''}
+
+      <!-- 해당 날짜 대화 원문 미리보기 토글 -->
+      <details class="daily-transcript-details">
+        <summary>📜 ${dateStr} 전체 대화 원문 (${json.messages.length}건) 열람</summary>
+        <div class="transcript-feed">
+          ${json.messages.map(m => `
+            <div class="transcript-row">
+              <span class="t-time">${m.sent_at.substring(11)}</span>
+              <strong class="t-sender">${escapeHtml(m.sender)}:</strong>
+              <span class="t-msg">${escapeHtml(m.message)}</span>
+              ${m.attachment_path ? `<a href="${m.attachment_path}" target="_blank" class="t-file">📎첨부</a>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </details>
+    `;
+
+    // 게시판 발행 버튼 바인딩
+    const btnPub = document.getElementById('btnPublishToBoard');
+    if (btnPub) {
+      btnPub.addEventListener('click', () => publishCurrentDailySummary(roomId, dateStr));
+    }
+
+  } catch (err) {
+    card.innerHTML = `<div class="empty-state">대화 요약 로드 중 오류가 발생했습니다: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function publishCurrentDailySummary(roomId, dateStr) {
+  if (!currentDailySummaryData) return;
+  const btn = document.getElementById('btnPublishToBoard');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/daily/${encodeURIComponent(dateStr)}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        summary: currentDailySummaryData.summary,
+        keyEvents: currentDailySummaryData.keyEvents,
+        senderStats: currentDailySummaryData.senderStats,
+      }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      alert(`✨ [${dateStr}] 일일 요약이 아카이브 게시판에 성공적으로 발행되었습니다!`);
+      loadBoard();
+      loadStats();
+    } else {
+      alert(`발행 실패: ${json.error || '오류'}`);
+    }
+  } catch (err) {
+    alert(`발행 오류: ${err.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ==========================================
+// 14. [고도화 1] 대화방 병합 (Merge Rooms) 기능
+// ==========================================
+function initMergeRoomsFeature() {
+  const btnOpen = document.getElementById('btnOpenMergeModal');
+  const btnClose = document.getElementById('btnCloseMergeModal');
+  const btnCancel = document.getElementById('btnCancelMerge');
+  const btnExecute = document.getElementById('btnExecuteMerge');
+  const modal = document.getElementById('mergeRoomsDialog');
+  const targetSelect = document.getElementById('mergeTargetRoom');
+
+  if (btnOpen && modal) {
+    btnOpen.addEventListener('click', () => {
+      populateMergeModal();
+      modal.showModal();
+    });
+  }
+
+  if (btnClose && modal) btnClose.addEventListener('click', () => modal.close());
+  if (btnCancel && modal) btnCancel.addEventListener('click', () => modal.close());
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.close();
+    });
+  }
+
+  if (targetSelect) {
+    targetSelect.addEventListener('change', () => {
+      renderMergeSourceCheckboxes(targetSelect.value);
+    });
+  }
+
+  if (btnExecute) {
+    btnExecute.addEventListener('click', executeRoomMerge);
+  }
+}
+
+function populateMergeModal() {
+  const targetSelect = document.getElementById('mergeTargetRoom');
+  if (!targetSelect || !roomsData) return;
+
+  targetSelect.innerHTML = roomsData.map(r => `
+    <option value="${r.id}" ${r.id === activeRoomId ? 'selected' : ''}>
+      ${escapeHtml(r.name)} (${r.message_count}건)
+    </option>
+  `).join('');
+
+  renderMergeSourceCheckboxes(targetSelect.value);
+}
+
+function renderMergeSourceCheckboxes(targetRoomId) {
+  const container = document.getElementById('mergeSourceCheckboxes');
+  if (!container || !roomsData) return;
+
+  const sources = roomsData.filter(r => r.id !== targetRoomId);
+  if (sources.length === 0) {
+    container.innerHTML = '<span class="hint">합칠 다른 대화방이 없습니다.</span>';
+    return;
+  }
+
+  container.innerHTML = sources.map(r => `
+    <label class="merge-checkbox-item">
+      <input type="checkbox" name="mergeSourceRoom" value="${r.id}">
+      <span class="room-title">${escapeHtml(r.name)}</span>
+      <span class="room-msg-count">${r.message_count}건</span>
+    </label>
+  `).join('');
+}
+
+async function executeRoomMerge() {
+  const targetSelect = document.getElementById('mergeTargetRoom');
+  const targetRoomId = targetSelect ? targetSelect.value : null;
+  const checkedBoxes = document.querySelectorAll('input[name="mergeSourceRoom"]:checked');
+
+  if (!targetRoomId) {
+    alert('통합 대상 대화방을 선택하세요.');
+    return;
+  }
+
+  const sourceRoomIds = Array.from(checkedBoxes).map(cb => cb.value);
+  if (sourceRoomIds.length === 0) {
+    alert('흡수하여 합칠 대화방을 1개 이상 선택해주세요.');
+    return;
+  }
+
+  const targetRoom = roomsData.find(r => r.id === targetRoomId);
+  const targetName = targetRoom ? targetRoom.name : '선택한 대상 방';
+
+  const confirmMsg = `정말 ${sourceRoomIds.length}개의 대화방을 [${targetName}]으로 합치시겠습니까?\n` +
+    `선택한 방들의 모든 대화와 미디어가 대상 방으로 이전되며, 빈 방은 정리됩니다.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  const btn = document.getElementById('btnExecuteMerge');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/rooms/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetRoomId, sourceRoomIds }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      alert(`✨ 성공적으로 ${json.mergedCount}개의 대화방이 [${json.targetRoomName}]으로 병합되었습니다!`);
+      const modal = document.getElementById('mergeRoomsDialog');
+      if (modal) modal.close();
+      await loadRooms();
+      selectRoom(targetRoomId);
+    } else {
+      alert(`대화방 병합 실패: ${json.error || '오류'}`);
+    }
+  } catch (err) {
+    alert(`병합 통신 오류: ${err.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }

@@ -57,7 +57,10 @@
           <aside class="room-sidebar">
             <div class="panel-header">
               <h2>대화방 목록</h2>
-              <button class="btn-sm btn-outline" id="btnRefreshRooms">새로고침</button>
+              <div class="header-btns">
+                <button class="btn-sm btn-outline" id="btnOpenMergeModal" title="파편화된 대화방을 하나로 통합">대화방 병합</button>
+                <button class="btn-sm btn-outline" id="btnRefreshRooms">새로고침</button>
+              </div>
             </div>
             <div class="search-box">
               <input type="text" id="roomSearchInput" placeholder="대화방 검색...">
@@ -75,14 +78,31 @@
                 <span class="room-meta" id="currentRoomMeta">-</span>
               </div>
               <div class="chat-actions">
-                <button class="btn-sm" id="btnDownloadRoomMedia">미디어 일괄 백업</button>
+                <div class="view-mode-toggle">
+                  <button class="btn-sm btn-toggle active" id="btnViewTimeline" type="button">실시간 대화</button>
+                  <button class="btn-sm btn-toggle" id="btnViewDailySummary" type="button">📅 일별 요약</button>
+                </div>
+                <button class="btn-sm" id="btnDownloadRoomMedia">미디어 백업</button>
                 <button class="btn-sm btn-outline" id="btnSummarizeRoom">즉시 요약</button>
               </div>
             </div>
 
+            <!-- 일자별 날짜 선택 바 (동적 렌더링) -->
+            <div class="daily-dates-bar" id="dailyDatesBar" style="display: none;">
+              <span class="bar-title">날짜 선택:</span>
+              <div class="date-chips" id="dateChipsContainer"></div>
+            </div>
+
             <!-- 메시지 검색 바 -->
-            <div class="message-search-bar">
+            <div class="message-search-bar" id="messageSearchBar">
               <input type="text" id="messageSearchInput" placeholder="이 대화방에서 메시지 검색...">
+            </div>
+
+            <!-- 일별 요약 전용 뷰 (KST 일자별 브리핑 & 이슈 리포트) -->
+            <div class="daily-summary-view" id="dailySummaryView" style="display: none;">
+              <div class="daily-summary-card" id="dailySummaryCard">
+                <div class="daily-summary-loading">일별 대화 내역 및 요약을 불러오는 중...</div>
+              </div>
             </div>
 
             <!-- 메시지 피드 -->
@@ -301,6 +321,36 @@
             <button id="btnShareApp" class="btn-share-app" type="button">
               🔗 다른 기기 / 친구에게 링크 보내기
             </button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- 대화방 병합(Merge) 다이얼로그 -->
+    <dialog id="mergeRoomsDialog" class="modal-dialog">
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h3>🔗 대화방 병합 (파편화된 방 합치기)</h3>
+          <button class="close-btn" id="btnCloseMergeModal">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <p class="modal-desc">
+            발신자별로 잘못 쪼개진 대화방들을 하나의 원래 단체 카톡방으로 통합합니다.<br>
+            선택한 방들의 모든 대화와 미디어가 대상 방으로 안전하게 이전됩니다.
+          </p>
+          <div class="form-group">
+            <label for="mergeTargetRoom"><strong>통합 대상 대화방 (Target Room)</strong></label>
+            <select id="mergeTargetRoom" class="form-select"></select>
+          </div>
+          <div class="form-group">
+            <label><strong>흡수하여 합칠 대화방 선택 (Source Rooms)</strong></label>
+            <div class="room-multiselect" id="mergeSourceCheckboxes">
+              <span class="hint">대화방 목록을 불러오는 중...</span>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-primary" id="btnExecuteMerge" type="button">선택한 방 병합 실행</button>
+            <button class="btn-outline" id="btnCancelMerge" type="button">취소</button>
           </div>
         </div>
       </div>

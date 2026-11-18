@@ -24,23 +24,26 @@ function createWebhookRouter(broadcastWs) {
 
     // 2. 바디 데이터 정규화
     // 메신저봇R 또는 안드로이드 알림 리스너 페이로드 호환
-    const room = req.body.room || req.body.roomName || '알 수 없는 대화방';
-    const sender = req.body.sender || req.body.author || '알 수 없음';
+    // 단체방 이름이 conversationTitle / groupName / subText로 전달된 경우 최우선 반영
+    let rawRoom = req.body.groupName || req.body.conversationTitle || req.body.subText || req.body.room || req.body.roomName || '알 수 없는 대화방';
+    const sender = String(req.body.sender || req.body.author || '알 수 없음').trim();
     const message = req.body.msg || req.body.message || req.body.text || '';
     const isGroupChat = req.body.isGroupChat !== undefined ? Boolean(req.body.isGroupChat) : true;
     const sentAt = req.body.sentAt || getKSTDateTimeString();
+
+    let room = String(rawRoom).trim();
 
     console.log(`[Webhook] 수신: [${room}] ${sender}: ${message.substring(0, 40)}`);
 
     // 방 ID 생성 (방 이름 기반 안정적인 해시 ID 생성)
     const roomId = req.body.roomId || 'room_' + crypto.createHash('md5').update(room).digest('hex').substring(0, 16);
 
-    // 메시지 타입 감지
+    // 메시지 타입 정밀 감지 (단수/복수 대응)
     let messageType = 'text';
-    if (message.includes('사진을 보냈습니다')) messageType = 'image_notice';
-    else if (message.includes('동영상을 보냈습니다')) messageType = 'video_notice';
-    else if (message.includes('파일을 보냈습니다')) messageType = 'file_notice';
-    else if (message.includes('이모티콘을 보냈습니다')) messageType = 'emoticon_notice';
+    if (message.includes('사진') && message.includes('보냈습니다')) messageType = 'image_notice';
+    else if (message.includes('동영상') && message.includes('보냈습니다')) messageType = 'video_notice';
+    else if (message.includes('파일') && message.includes('보냈습니다')) messageType = 'file_notice';
+    else if (message.includes('이모티콘') && message.includes('보냈습니다')) messageType = 'emoticon_notice';
 
     // 3. DB 저장
     const msgId = db.insertMessage({
