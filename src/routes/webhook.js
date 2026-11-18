@@ -17,6 +17,7 @@ function createWebhookRouter(broadcastWs) {
     // 1. 보안 인증 검사
     const secret = req.headers['x-webhook-secret'] || req.query.secret;
     if (secret !== WEBHOOK_SECRET) {
+      console.warn(`[Webhook Auth Failed] IP: ${clientIp}, Secret mismatch`);
       db.insertAuditLog('WEBHOOK_AUTH_FAILED', clientIp, userAgent, { reason: 'Invalid secret key' });
       return res.status(401).json({ success: false, error: 'Unauthorized: Invalid secret key' });
     }
@@ -28,6 +29,8 @@ function createWebhookRouter(broadcastWs) {
     const message = req.body.msg || req.body.message || req.body.text || '';
     const isGroupChat = req.body.isGroupChat !== undefined ? Boolean(req.body.isGroupChat) : true;
     const sentAt = req.body.sentAt || getKSTDateTimeString();
+
+    console.log(`[Webhook] 수신: [${room}] ${sender}: ${message.substring(0, 40)}`);
 
     // 방 ID 생성 (방 이름 기반 안정적인 해시 ID 생성)
     const roomId = req.body.roomId || 'room_' + crypto.createHash('md5').update(room).digest('hex').substring(0, 16);
