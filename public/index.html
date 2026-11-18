@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>카카오톡 아카이브 & 대시보드 - kt.danminlove.com</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
+</head>
+<body>
+  <div class="app-container">
+    <!-- 사이드바 / 상단 네비게이션 -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-icon">💬</span>
+        <div class="brand-text">
+          <h1>KT Archive</h1>
+          <span class="subdomain">kt.danminlove.com</span>
+        </div>
+      </div>
+
+      <!-- 통계 바 -->
+      <div class="stats-pills" id="statsBar">
+        <div class="stat-pill"><span class="label">대화방</span> <strong id="statRooms">0</strong></div>
+        <div class="stat-pill"><span class="label">메시지</span> <strong id="statMessages">0</strong></div>
+        <div class="stat-pill"><span class="label">미디어</span> <strong id="statMedia">0</strong></div>
+        <div class="stat-pill status-pill" id="wsStatusPill"><span class="indicator"></span> <span id="wsStatusText">연결 중</span></div>
+      </div>
+
+      <!-- 탭 메뉴 -->
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="rooms">대화방 & 메시지</button>
+        <button class="tab-btn" data-tab="board">아카이브 게시판</button>
+        <button class="tab-btn" data-tab="media">미디어 갤러리</button>
+        <button class="tab-btn" data-tab="scheduler">자동 스케줄러</button>
+      </nav>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="app-main">
+      <!-- 탭 1: 대화방 & 메시지 뷰어 -->
+      <section class="tab-panel active" id="tab-rooms">
+        <div class="chat-layout">
+          <!-- 대화방 사이드 패널 -->
+          <aside class="room-sidebar">
+            <div class="panel-header">
+              <h2>대화방 목록</h2>
+              <button class="btn-sm btn-outline" id="btnRefreshRooms">새로고침</button>
+            </div>
+            <div class="search-box">
+              <input type="text" id="roomSearchInput" placeholder="대화방 검색...">
+            </div>
+            <ul class="room-list" id="roomList">
+              <li class="loading-item">대화방 로딩 중...</li>
+            </ul>
+          </aside>
+
+          <!-- 대화창 뷰어 -->
+          <div class="chat-viewport">
+            <div class="chat-header">
+              <div class="active-room-info">
+                <h3 id="currentRoomTitle">대화방을 선택하세요</h3>
+                <span class="room-meta" id="currentRoomMeta">-</span>
+              </div>
+              <div class="chat-actions">
+                <button class="btn-sm" id="btnDownloadRoomMedia">미디어 일괄 백업</button>
+                <button class="btn-sm btn-outline" id="btnSummarizeRoom">즉시 요약</button>
+              </div>
+            </div>
+
+            <!-- 메시지 검색 바 -->
+            <div class="message-search-bar">
+              <input type="text" id="messageSearchInput" placeholder="이 대화방에서 메시지 검색...">
+            </div>
+
+            <!-- 메시지 피드 -->
+            <div class="message-feed" id="messageFeed">
+              <div class="empty-state">대화방을 선택하면 실시간 메시지와 내역이 표시됩니다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 탭 2: 아카이브 게시판 (요약 및 정리 리포트) -->
+      <section class="tab-panel" id="tab-board">
+        <div class="board-header">
+          <div>
+            <h2>대화 정리 & 요약 게시판</h2>
+            <p class="section-desc">지정된 스케줄(10분/1시간/12시간/주1회)에 따라 자동 생성된 타임라인 리포트입니다.</p>
+          </div>
+          <button class="btn-primary" id="btnCreateSchedulePost">+ 새 스케줄 설정</button>
+        </div>
+
+        <div class="board-grid" id="boardFeed">
+          <div class="loading-card">게시판 리포트 로딩 중...</div>
+        </div>
+      </section>
+
+      <!-- 탭 3: 미디어 갤러리 -->
+      <section class="tab-panel" id="tab-media">
+        <div class="gallery-header">
+          <div>
+            <h2>다운로드 미디어 갤러리</h2>
+            <p class="section-desc">시놀로지 NAS의 <code>/volume1/Download/KakaoArchive</code>에 저장된 사진, 동영상, 파일입니다.</p>
+          </div>
+          <div class="filter-controls">
+            <select id="mediaFilterType">
+              <option value="all">전체 미디어</option>
+              <option value="image">사진만</option>
+              <option value="video">동영상만</option>
+              <option value="file">문서/파일만</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="media-grid" id="mediaGrid">
+          <div class="empty-state">저장된 미디어가 없습니다.</div>
+        </div>
+      </section>
+
+      <!-- 탭 4: 자동 스케줄러 관리 -->
+      <section class="tab-panel" id="tab-scheduler">
+        <div class="scheduler-layout">
+          <div class="scheduler-form-card">
+            <h3>자동 수집 & 정리 스케줄 추가/수정</h3>
+            <form id="schedulerForm">
+              <div class="form-group">
+                <label for="schedName">스케줄 이름</label>
+                <input type="text" id="schedName" required placeholder="예: 단톡방 1시간 정기 백업 & 요약">
+              </div>
+
+              <div class="form-group">
+                <label>대상 대화방 다중 선택</label>
+                <div class="room-multiselect" id="schedRoomCheckboxes">
+                  <span class="hint">대화방 목록을 불러오는 중...</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="schedInterval">실행 주기 설정</label>
+                <select id="schedInterval">
+                  <option value="10m">10분 마다</option>
+                  <option value="30m">30분 마다</option>
+                  <option value="1h" selected>1시간 마다</option>
+                  <option value="6h">6시간 마다</option>
+                  <option value="12h">12시간 마다</option>
+                  <option value="1d">매일 1회 (오전 9시)</option>
+                  <option value="1w">주 1회 (매주 월요일 9시)</option>
+                  <option value="once">1회성 예약 실행</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>수집 옵션</label>
+                <div class="checkbox-group">
+                  <label><input type="checkbox" id="optDownloadMedia" checked> 이미지/동영상 시놀로지 Download 폴더 자동 저장</label>
+                  <label><input type="checkbox" id="optAiSummary" checked> 대화 내용 자동 요약 및 게시판 피드 발행</label>
+                </div>
+              </div>
+
+              <button type="submit" class="btn-primary" id="btnSaveSchedule">스케줄 저장</button>
+            </form>
+          </div>
+
+          <div class="scheduler-list-card">
+            <h3>등록된 스케줄 목록</h3>
+            <div class="schedule-items" id="scheduleList">
+              <div class="empty-state">등록된 스케줄이 없습니다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 게시글 상세 팝업 다이얼로그 (HTML5 <dialog>) -->
+    <dialog id="postDetailDialog" class="modal-dialog">
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h3 id="modalPostTitle">리포트 상세</h3>
+          <button class="close-btn" id="btnClosePostModal">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <div class="meta-row" id="modalPostMeta"></div>
+          <div class="summary-box" id="modalPostSummary"></div>
+          <h4>포함된 대화 샘플</h4>
+          <div class="dialog-messages-feed" id="modalPostMessages"></div>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- 미디어 미리보기 팝업 다이얼로그 -->
+    <dialog id="mediaPreviewDialog" class="modal-dialog media-modal">
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h3 id="mediaPreviewTitle">미디어 미리보기</h3>
+          <button class="close-btn" id="btnCloseMediaModal">&times;</button>
+        </div>
+        <div class="dialog-body" id="mediaPreviewBody">
+          <!-- 동적 이미지 또는 비디오 태그 -->
+        </div>
+      </div>
+    </dialog>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
