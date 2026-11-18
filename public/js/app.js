@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSchedules();
   setupEventListeners();
   setupMobileLifecycle();
+  initPwa();
 });
 
 // 2. 탭 전환
@@ -508,4 +509,148 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// 12. PWA & 앱으로 보내기 (홈 화면에 추가) 모듈
+let deferredPrompt = null;
+
+function initPwa() {
+  // 12.1. 서비스 워커 등록
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('[PWA] ServiceWorker registered with scope:', reg.scope))
+        .catch(err => console.warn('[PWA] ServiceWorker registration error:', err));
+    });
+  }
+
+  // 12.2. 안드로이드/Chrome beforeinstallprompt 이벤트 감지
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    console.log('[PWA] beforeinstallprompt captured');
+    const directBox = document.getElementById('pwaDirectInstallBox');
+    if (directBox) directBox.style.display = 'block';
+  });
+
+  // 12.3. 앱 설치 완료 감지
+  window.addEventListener('appinstalled', () => {
+    console.log('[PWA] App successfully installed!');
+    deferredPrompt = null;
+    const directBox = document.getElementById('pwaDirectInstallBox');
+    if (directBox) directBox.style.display = 'none';
+  });
+
+  // 12.4. 상단 '앱으로 보내기' 버튼 클릭
+  const btnPwaInstall = document.getElementById('btnPwaInstall');
+  const pwaDialog = document.getElementById('pwaGuideDialog');
+  const btnClosePwaModal = document.getElementById('btnClosePwaModal');
+
+  if (btnPwaInstall && pwaDialog) {
+    btnPwaInstall.addEventListener('click', () => {
+      // 기기 OS 감지하여 해당 탭 기본 활성화
+      const ua = navigator.userAgent.toLowerCase();
+      const isIos = /iphone|ipad|ipod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+      if (isIos) {
+        selectPwaTab('ios');
+      } else {
+        selectPwaTab('android');
+      }
+
+      if (deferredPrompt) {
+        const directBox = document.getElementById('pwaDirectInstallBox');
+        if (directBox) directBox.style.display = 'block';
+      }
+
+      pwaDialog.showModal();
+    });
+  }
+
+  if (btnClosePwaModal && pwaDialog) {
+    btnClosePwaModal.addEventListener('click', () => {
+      pwaDialog.close();
+    });
+  }
+
+  // 모달 배경 클릭 시 닫기
+  if (pwaDialog) {
+    pwaDialog.addEventListener('click', (e) => {
+      if (e.target === pwaDialog) pwaDialog.close();
+    });
+  }
+
+  // 12.5. 안드로이드 원클릭 직접 설치 트리거
+  const btnDirectInstall = document.getElementById('btnPwaDirectInstall');
+  if (btnDirectInstall) {
+    btnDirectInstall.addEventListener('click', async () => {
+      if (!deferredPrompt) {
+        alert('브라우저 메뉴(⋮)에서 [홈 화면에 추가] 또는 [앱 설치]를 선택해주세요! 📲');
+        return;
+      }
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log('[PWA] Install choice outcome:', outcome);
+      deferredPrompt = null;
+      const directBox = document.getElementById('pwaDirectInstallBox');
+      if (directBox) directBox.style.display = 'none';
+
+      if (outcome === 'accepted') {
+        alert('카카오 아카이브 앱이 스마트폰 홈 화면에 추가되었습니다! ✨');
+        if (pwaDialog) pwaDialog.close();
+      }
+    });
+  }
+
+  // 12.6. iOS / Android 탭 전환
+  const tabIos = document.getElementById('tabPwaIos');
+  const tabAndroid = document.getElementById('tabPwaAndroid');
+
+  if (tabIos) tabIos.addEventListener('click', () => selectPwaTab('ios'));
+  if (tabAndroid) tabAndroid.addEventListener('click', () => selectPwaTab('android'));
+
+  // 12.7. 다른 앱/기기로 공유하기 (Web Share API)
+  const btnShare = document.getElementById('btnShareApp');
+  if (btnShare) {
+    btnShare.addEventListener('click', async () => {
+      const shareUrl = window.location.origin;
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: '카카오 아카이브 (KT Archive)',
+            text: '카카오톡 실시간 메시지 아카이브 & 대시보드 웹 서비스입니다.',
+            url: shareUrl,
+          });
+        } catch (err) {
+          if (err.name !== 'AbortError') console.warn('[Share] Share error:', err);
+        }
+      } else {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          alert('웹 서비스 주소가 복사되었습니다! 카톡이나 메시지로 전달해주세요:\n' + shareUrl);
+        } catch {
+          prompt('아래 링크를 복사하여 모바일에서 접속하세요:', shareUrl);
+        }
+      }
+    });
+  }
+}
+
+function selectPwaTab(os) {
+  const tabIos = document.getElementById('tabPwaIos');
+  const tabAndroid = document.getElementById('tabPwaAndroid');
+  const panelIos = document.getElementById('panelPwaIos');
+  const panelAndroid = document.getElementById('panelPwaAndroid');
+
+  if (os === 'ios') {
+    tabIos?.classList.add('active');
+    tabAndroid?.classList.remove('active');
+    if (panelIos) panelIos.style.display = 'block';
+    if (panelAndroid) panelAndroid.style.display = 'none';
+  } else {
+    tabAndroid?.classList.add('active');
+    tabIos?.classList.remove('active');
+    if (panelAndroid) panelAndroid.style.display = 'block';
+    if (panelIos) panelIos.style.display = 'none';
+  }
 }

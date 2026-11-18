@@ -5,7 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>카카오톡 아카이브 & 대시보드 - kt.danminlove.com</title>
   <link rel="stylesheet" href="/css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#FEE500">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="KT 아카이브">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="/icons/icon-master.svg">
 </head>
 <body>
   <div class="app-container">
@@ -27,13 +34,18 @@
         <div class="stat-pill status-pill" id="wsStatusPill"><span class="indicator"></span> <span id="wsStatusText">연결 중</span></div>
       </div>
 
-      <!-- 탭 메뉴 -->
-      <nav class="tab-nav">
-        <button class="tab-btn active" data-tab="rooms">대화방 & 메시지</button>
-        <button class="tab-btn" data-tab="board">아카이브 게시판</button>
-        <button class="tab-btn" data-tab="media">미디어 갤러리</button>
-        <button class="tab-btn" data-tab="scheduler">자동 스케줄러</button>
-      </nav>
+      <!-- 탭 메뉴 및 앱 설치 액션 -->
+      <div class="header-action-row">
+        <nav class="tab-nav">
+          <button class="tab-btn active" data-tab="rooms">대화방 & 메시지</button>
+          <button class="tab-btn" data-tab="board">아카이브 게시판</button>
+          <button class="tab-btn" data-tab="media">미디어 갤러리</button>
+          <button class="tab-btn" data-tab="scheduler">자동 스케줄러</button>
+        </nav>
+        <button id="btnPwaInstall" class="btn-pwa-install" type="button" title="스마트폰 홈 화면에 앱으로 추가">
+          <span class="pwa-icon">📲</span> <span class="pwa-text">앱으로 보내기</span>
+        </button>
+      </div>
     </header>
 
     <!-- 메인 컨텐츠 영역 -->
@@ -197,6 +209,99 @@
         </div>
         <div class="dialog-body" id="mediaPreviewBody">
           <!-- 동적 이미지 또는 비디오 태그 -->
+        </div>
+      </div>
+    </dialog>
+
+    <!-- PWA 홈 화면 앱으로 보내기 / 설치 가이드 다이얼로그 -->
+    <dialog id="pwaGuideDialog" class="modal-dialog pwa-modal">
+      <div class="dialog-content pwa-dialog-content">
+        <div class="dialog-header">
+          <h3>📲 스마트폰 앱으로 보내기</h3>
+          <button class="close-btn" id="btnClosePwaModal">&times;</button>
+        </div>
+        <div class="dialog-body pwa-dialog-body">
+          <div class="pwa-header-card">
+            <img src="/icons/apple-touch-icon.png" alt="KT Archive Icon" class="pwa-app-icon">
+            <div class="pwa-app-info">
+              <h4>카카오 아카이브 (KT Archive)</h4>
+              <p>앱스토어 설치 없이 홈 화면에서 진짜 앱처럼 주소창 없는 전체화면으로 빠르게 열람하세요.</p>
+            </div>
+          </div>
+
+          <!-- 안드로이드 Chrome 원클릭 설치 버튼 (지원 시 노출) -->
+          <div id="pwaDirectInstallBox" class="pwa-direct-install-box" style="display: none;">
+            <button id="btnPwaDirectInstall" class="btn-pwa-direct-install" type="button">
+              ✨ 지금 바로 원클릭 홈 화면 앱 설치하기
+            </button>
+          </div>
+
+          <!-- OS별 탭 선택 -->
+          <div class="pwa-device-tabs">
+            <button class="pwa-tab-btn active" id="tabPwaIos" type="button">🍎 아이폰 (iOS Safari)</button>
+            <button class="pwa-tab-btn" id="tabPwaAndroid" type="button">🤖 안드로이드 (Galaxy / Chrome)</button>
+          </div>
+
+          <!-- 아이폰 가이드 패널 -->
+          <div class="pwa-device-panel active" id="panelPwaIos">
+            <div class="pwa-guide-steps">
+              <div class="guide-step">
+                <div class="step-num">1</div>
+                <div class="step-desc">
+                  iPhone <strong>Safari</strong> 브라우저 하단 중앙의 <strong>[공유] 버튼(⎋ 네모 상자 위 화살표)</strong>을 누릅니다.
+                </div>
+              </div>
+              <div class="guide-step">
+                <div class="step-num">2</div>
+                <div class="step-desc">
+                  나타난 공유 메뉴를 아래로 스크롤하여 <strong>[홈 화면에 추가] (+ 모양)</strong> 항목을 선택합니다.
+                </div>
+              </div>
+              <div class="guide-step">
+                <div class="step-num">3</div>
+                <div class="step-desc">
+                  우측 상단의 <strong>[추가]</strong>를 누르면 홈 화면에 예쁜 카카오톡 아카이브 아이콘 앱이 생성됩니다!
+                </div>
+              </div>
+            </div>
+            <div class="pwa-tip-box">
+              💡 <strong>팁:</strong> 홈 화면에 추가된 앱을 실행하면 사파리 주소창이 사라지고 100% 전체화면 네이티브 앱처럼 동작합니다.
+            </div>
+          </div>
+
+          <!-- 안드로이드 가이드 패널 -->
+          <div class="pwa-device-panel" id="panelPwaAndroid" style="display: none;">
+            <div class="pwa-guide-steps">
+              <div class="guide-step">
+                <div class="step-num">1</div>
+                <div class="step-desc">
+                  Chrome 또는 삼성 인터넷 브라우저 우측 상단의 <strong>더보기(⋮) 아이콘</strong>을 터치합니다.
+                </div>
+              </div>
+              <div class="guide-step">
+                <div class="step-num">2</div>
+                <div class="step-desc">
+                  메뉴에서 <strong>[홈 화면에 추가]</strong> 또는 <strong>[앱 설치]</strong>를 선택합니다.
+                </div>
+              </div>
+              <div class="guide-step">
+                <div class="step-num">3</div>
+                <div class="step-desc">
+                  팝업창에서 <strong>[설치]</strong> 또는 <strong>[추가]</strong>를 누르면 스마트폰 앱 서랍 및 홈 화면에 등록 완료!
+                </div>
+              </div>
+            </div>
+            <div class="pwa-tip-box">
+              💡 <strong>팁:</strong> 브라우저 상단 주소창 옆에 '설치(↓)' 버튼이 떠 있을 경우 해당 버튼을 터치해도 즉시 설치됩니다.
+            </div>
+          </div>
+
+          <!-- 시스템 공유 버튼 -->
+          <div class="pwa-share-action">
+            <button id="btnShareApp" class="btn-share-app" type="button">
+              🔗 다른 기기 / 친구에게 링크 보내기
+            </button>
+          </div>
         </div>
       </div>
     </dialog>

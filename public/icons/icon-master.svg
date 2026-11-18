@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE812"/>
+      <stop offset="100%" stop-color="#FACC15"/>
+    </linearGradient>
+    <linearGradient id="bubbleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3C1E1E"/>
+      <stop offset="100%" stop-color="#281414"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Squircle Background -->
+  <rect width="512" height="512" rx="115" fill="url(#bgGrad)"/>
+
+  <!-- Outer Border Highlight -->
+  <rect x="6" y="6" width="500" height="500" rx="110" fill="none" stroke="#FFFFFF" stroke-opacity="0.4" stroke-width="6"/>
+
+  <!-- Kakao Speech Bubble with Shadow -->
+  <g filter="url(#shadow)">
+    <!-- Main Oval Bubble -->
+    <path d="M 256 120 C 150 120 72 188 72 272 C 72 324 108 370 162 396 L 140 452 C 137 459 144 466 151 462 L 222 422 C 233 424 244 424 256 424 C 362 424 440 356 440 272 C 440 188 362 120 256 120 Z" 
+          fill="url(#bubbleGrad)"/>
+    
+    <!-- Inner Archive Symbol: Down Arrow + Tray in Yellow/White -->
+    <!-- Down Arrow -->
+    <path d="M 256 190 L 256 300 M 216 260 L 256 300 L 296 260" 
+          fill="none" stroke="#FEE500" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Archive Tray / Storage Base -->
+    <path d="M 186 315 L 186 345 C 186 352 192 358 200 358 L 312 358 C 320 358 326 352 326 345 L 326 315" 
+          fill="none" stroke="#FEE500" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Small Sparkle/Badge -->
+  <circle cx="410" cy="110" r="28" fill="#EF4444" stroke="#FFFFFF" stroke-width="6"/>
+  <path d="M 410 98 L 410 122 M 398 110 L 422 110" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+</svg>
