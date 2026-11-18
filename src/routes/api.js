@@ -194,7 +194,7 @@ router.get('/media/:id/download', (req, res) => {
   }
 
   const cleanRel = msg.attachment_path.replace(/^\/media\//, '');
-  const fullPath = path.isAbsolute(msg.attachment_path) ? msg.attachment_path : path.join(DOWNLOAD_DIR, cleanRel);
+  const fullPath = path.join(DOWNLOAD_DIR, cleanRel);
   if (!fs.existsSync(fullPath)) {
     return res.status(404).json({ success: false, error: '서버 스토리지에 파일이 존재하지 않습니다.' });
   }
