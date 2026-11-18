@@ -5,6 +5,7 @@
 let activeRoomId = null;
 let ws = null;
 let roomsData = [];
+let roomDisplayCount = 5; // 상위 5개 기본 표시, 더보기 클릭 시 +5개씩 증가
 
 // 1. 초기화
 document.addEventListener('DOMContentLoaded', () => {
@@ -137,12 +138,28 @@ async function loadRooms() {
 
 function renderRoomList(rooms) {
   const listEl = document.getElementById('roomList');
-  if (rooms.length === 0) {
+  if (!rooms || rooms.length === 0) {
     listEl.innerHTML = '<li class="empty-state">등록된 대화방이 없습니다.<br><small>카톡 웹훅 또는 맥북 동기화 시 자동 등록됩니다.</small></li>';
     return;
   }
 
-  listEl.innerHTML = rooms.map(room => `
+  // 1. 검색어 필터링
+  const searchInput = document.getElementById('roomSearchInput');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const filtered = query 
+    ? rooms.filter(r => (r.name && r.name.toLowerCase().includes(query)))
+    : rooms;
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<li class="empty-state">검색 결과가 없습니다.</li>';
+    return;
+  }
+
+  // 2. 상위 roomDisplayCount개 슬라이스 (기본 5개, 더보기 시 +5개)
+  const visibleRooms = filtered.slice(0, roomDisplayCount);
+  const remainingCount = filtered.length - visibleRooms.length;
+
+  let html = visibleRooms.map(room => `
     <li class="room-item ${room.id === activeRoomId ? 'active' : ''}" data-id="${room.id}">
       <div class="room-info">
         <span class="room-name">${escapeHtml(room.name)}</span>
@@ -154,12 +171,38 @@ function renderRoomList(rooms) {
     </li>
   `).join('');
 
+  // 3. 더보기 버튼 (남은 대화방이 있는 경우)
+  if (remainingCount > 0) {
+    html += `
+      <li class="load-more-item">
+        <button id="btnLoadMoreRooms" class="btn-load-more-rooms" type="button">
+          <span>대화방 더보기 (+5개)</span>
+          <span class="remaining-badge">${remainingCount}개 남음</span>
+          <span class="arrow-icon">▼</span>
+        </button>
+      </li>
+    `;
+  }
+
+  listEl.innerHTML = html;
+
+  // 4. 대화방 클릭 이벤트 바인딩
   listEl.querySelectorAll('.room-item').forEach(item => {
     item.addEventListener('click', () => {
       const roomId = item.getAttribute('data-id');
       selectRoom(roomId);
     });
   });
+
+  // 5. 더보기 버튼 클릭 이벤트
+  const btnMore = document.getElementById('btnLoadMoreRooms');
+  if (btnMore) {
+    btnMore.addEventListener('click', (e) => {
+      e.stopPropagation();
+      roomDisplayCount += 5;
+      renderRoomList(roomsData);
+    });
+  }
 }
 
 // 대화방 선택
@@ -438,7 +481,19 @@ function setupEventListeners() {
   });
 
   // 대화방 새로고침
-  document.getElementById('btnRefreshRooms')?.addEventListener('click', loadRooms);
+  document.getElementById('btnRefreshRooms')?.addEventListener('click', () => {
+    roomDisplayCount = 5;
+    loadRooms();
+  });
+
+  // 대화방 검색어 입력 시 5개 리셋 & 실시간 필터링
+  const roomSearchInput = document.getElementById('roomSearchInput');
+  if (roomSearchInput) {
+    roomSearchInput.addEventListener('input', () => {
+      roomDisplayCount = 5;
+      renderRoomList(roomsData);
+    });
+  }
 
   // 스케줄 폼 제출
   document.getElementById('schedulerForm')?.addEventListener('submit', async (e) => {

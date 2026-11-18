@@ -931,3 +931,48 @@ body {
   border-color: #FEE500;
   color: #FACC15;
 }
+
+/* ============================================================
+   Load More Rooms Button Styles
+   ============================================================ */
+.load-more-item {
+  list-style: none;
+  padding: 8px 4px 12px;
+}
+
+.btn-load-more-rooms {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-tertiary);
+  border: 1px dashed rgba(254, 229, 0, 0.4);
+  color: var(--text-primary);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-load-more-rooms:hover {
+  background: rgba(254, 229, 0, 0.1);
+  border-color: #FEE500;
+  color: #FACC15;
+  transform: translateY(-1px);
+}
+
+.btn-load-more-rooms .remaining-badge {
+  background: rgba(254, 229, 0, 0.2);
+  color: #FACC15;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.btn-load-more-rooms .arrow-icon {
+  font-size: 10px;
+  transition: transform 0.2s;
+}
